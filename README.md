@@ -2,7 +2,7 @@
 
 **Status: In development.**
 
-This project contains a FastAPI application skeleton, a health endpoint, and a common interface for LLM providers.
+This project contains a FastAPI application skeleton, LLM provider adapters, and local document ingestion with embeddings and a persistent vector database.
 
 ## Architecture
 
@@ -36,6 +36,20 @@ For Ollama, start the server and download the model specified by `AGENTIC_RAG_OL
 
 Both adapters expose a synchronous `generate(prompt: str) -> str` method and raise `LLMProviderError` on failure. The call blocks; run it outside the event loop when using it in an asynchronous endpoint. Use `get_llm_provider` for dependency injection. A chat endpoint and RAG integration have not yet been implemented.
 
+## Document ingestion
+
+Ingest a UTF-8 `.txt`, `.md`, or text-based `.pdf` file, or recursively ingest supported files in a directory:
+
+```powershell
+python -m scripts.ingest_documents data/documents
+```
+
+The configured Sentence Transformers model runs on CPU. On first use, its weights may be downloaded from Hugging Face and cached locally; subsequent use can use the cache. The Python dependencies include PyTorch and can require substantial disk space. Set `AGENTIC_RAG_EMBEDDING_MODEL`, `AGENTIC_RAG_CHROMA_PATH`, `AGENTIC_RAG_CHROMA_COLLECTION`, `AGENTIC_RAG_CHUNK_SIZE`, and `AGENTIC_RAG_CHUNK_OVERLAP` in `.env` as needed. Chunk sizes are measured in characters, not model tokens; long chunks may be truncated by the model. Overlap must be smaller than the chunk size.
+
+Chroma data is stored locally under `data/chroma` by default. Reingesting the same resolved file path replaces its existing chunks, including stale chunks; removing or renaming a source file does not automatically remove its old entries. Source paths are stored in metadata. Use a new collection and reingest documents when changing the embedding model. PDF extraction does not perform OCR, and page numbers are not yet preserved. Do not run concurrent ingestion for the same source.
+
+The vector store exposes similarity search for future integration. This stage does not yet add an answer-generation endpoint.
+
 ## Tests
 
 ```powershell
@@ -44,6 +58,3 @@ python -m pytest
 
 Run static analysis with `python -m ruff check .`. The workflow for implementation tasks is described in `AGENTS.md`.
 
-## External links
-
-- [Portál občana – sign in](https://obcan.portal.gov.cz/prihlaseni)
