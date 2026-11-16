@@ -1,5 +1,7 @@
 # Agentic RAG
 
+**Status: In development.**
+
 This project contains a FastAPI application skeleton, a health endpoint, and a common interface for LLM providers.
 
 ## Architecture

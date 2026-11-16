@@ -1,5 +1,7 @@
 # Agentic RAG architecture
 
+**Status: In development.**
+
 The diagram describes the target architecture for version 1. It is a design overview, not an inventory of implemented features.
 
 ![Target Agentic RAG architecture](architecture-agentic-rag.png)
