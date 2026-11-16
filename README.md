@@ -1,10 +1,10 @@
 # Agentic RAG
 
-První etapa projektu obsahuje základ FastAPI aplikace, konfiguraci a health endpoint.
+This project contains a FastAPI application skeleton, a health endpoint, and a common interface for LLM providers.
 
-## Spuštění
+## Getting started
 
-Vyžaduje Python 3.10 nebo novější. V kořeni projektu vytvořte a aktivujte virtuální prostředí, poté nainstalujte aplikaci a vývojové závislosti:
+Python 3.10 or later is required. Create and activate a virtual environment in the project root, then install the application and development dependencies:
 
 ```powershell
 python -m venv .venv
@@ -12,18 +12,26 @@ python -m venv .venv
 python -m pip install -e ".[dev]"
 ```
 
-Volitelně zkopírujte `.env.example` do `.env` a upravte konfiguraci. Proměnné prostředí mají přednost před hodnotami v `.env`.
+Optionally, copy `.env.example` to `.env` and adjust the configuration. Environment variables take precedence over values in `.env`.
 
 ```powershell
 uvicorn app.main:app --reload
 ```
 
-Health endpoint je na `http://127.0.0.1:8000/api/v1/health` a interaktivní dokumentace na `http://127.0.0.1:8000/docs`. Endpoint potvrzuje běh API; zatím nekontroluje externí služby.
+The health endpoint is available at `http://127.0.0.1:8000/api/v1/health` and interactive API documentation at `http://127.0.0.1:8000/docs`. The endpoint confirms that the API is running; it does not currently check external services.
 
-## Testy
+## LLM provider
+
+Select a provider using `AGENTIC_RAG_LLM_PROVIDER` (`ollama` or `codex`); see `.env.example` for an example configuration. Settings are loaded when the application starts, so restart it after changing `.env`.
+
+For Ollama, start the server and download the model specified by `AGENTIC_RAG_OLLAMA_MODEL` locally (default: `llama3.2`). Set `AGENTIC_RAG_OLLAMA_BASE_URL` to change the server address. For Codex, install and authenticate Codex CLI on the machine running the API; optionally configure the executable path and model. Codex is an agent with tools, and its read-only sandbox may not be available on every platform; it is not equivalent to a purely local LLM.
+
+Both adapters expose a synchronous `generate(prompt: str) -> str` method and raise `LLMProviderError` on failure. The call blocks; run it outside the event loop when using it in an asynchronous endpoint. Use `get_llm_provider` for dependency injection. A chat endpoint and RAG integration have not yet been implemented.
+
+## Tests
 
 ```powershell
 python -m pytest
 ```
 
-Statickou analýzu spusťte pomocí `python -m ruff check .`. Pracovní postup pro implementační úkoly je popsán v `AGENTS.md`.
+Run static analysis with `python -m ruff check .`. The workflow for implementation tasks is described in `AGENTS.md`.
