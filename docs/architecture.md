@@ -1,0 +1,9 @@
+# Agentic RAG architecture
+
+The diagram describes the target architecture for version 1. It is a design overview, not an inventory of implemented features.
+
+![Target Agentic RAG architecture](architecture-agentic-rag.png)
+
+Clients will communicate with a FastAPI backend. The planned agent layer uses LangGraph to route and refine queries, select sources, generate answers, and evaluate results with retries where appropriate. Potential sources include document retrieval, MCP tools, and web search. Providers are intended to be interchangeable, with local embeddings and Chroma supporting document retrieval. The diagram also outlines planned observability, tests, and deployment components.
+
+The current implementation provides the FastAPI skeleton, health endpoint, and a common interface with Codex CLI and Ollama adapters. Chat and document endpoints, LangGraph orchestration, RAG, MCP, web search, embeddings, Chroma, and the observability and deployment integrations remain planned.

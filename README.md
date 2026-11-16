@@ -2,6 +2,12 @@
 
 This project contains a FastAPI application skeleton, a health endpoint, and a common interface for LLM providers.
 
+## Architecture
+
+The diagram shows the target architecture; several components and endpoints are planned and are not yet implemented. See the [architecture documentation](docs/architecture.md) for the current scope and planned workflow.
+
+![Target Agentic RAG architecture](docs/architecture-agentic-rag.png)
+
 ## Getting started
 
 Python 3.10 or later is required. Create and activate a virtual environment in the project root, then install the application and development dependencies:
@@ -35,3 +41,7 @@ python -m pytest
 ```
 
 Run static analysis with `python -m ruff check .`. The workflow for implementation tasks is described in `AGENTS.md`.
+
+## External links
+
+- [Portál občana – sign in](https://obcan.portal.gov.cz/prihlaseni)
