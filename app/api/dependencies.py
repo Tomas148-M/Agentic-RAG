@@ -76,14 +76,18 @@ def get_retriever(
 def get_chat_service(
     retriever: Annotated[DocumentRetriever, Depends(get_retriever)],
     llm: Annotated[LLMProvider, Depends(get_llm_provider)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> ChatService:
     """Build a chat service from the retriever and selected LLM provider.
 
     Args:
         retriever (DocumentRetriever): Document search dependency.
         llm (LLMProvider): Configured text-generation provider.
+        settings (Settings): Selected chat mode and retry settings.
 
     Returns:
         ChatService: Service configured for the current request.
     """
-    return ChatService(retriever, llm)
+    return ChatService(
+        retriever, llm, settings.rag_mode, settings.agentic_max_retries
+    )

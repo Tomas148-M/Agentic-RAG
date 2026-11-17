@@ -1,22 +1,35 @@
 import re
 
 from app.agents.prompts.generator import build_rag_prompt
+from app.core.config import (
+    CITATION_MARKER_PATTERN,
+    DEFAULT_AGENTIC_MAX_RETRIES,
+    RAG_MODE_AGENTIC,
+    RAG_MODE_BASIC,
+    VALID_CITATION_PATTERN,
+)
 from app.integrations.llm.base import LLMProvider, LLMProviderError
 from app.rag.retriever import DocumentRetriever
 from app.schemas.chat import ChatResponse, Citation
 
-_CITATION_MARKER = re.compile(
-    r"\[(?:[A-Za-z]\d+|[Ss][\s+-]+\d+)[^\]]*\]"
-)
-_VALID_MARKER = re.compile(r"\[S([1-9]\d*)\]")
+_CITATION_MARKER = re.compile(CITATION_MARKER_PATTERN)
+_VALID_MARKER = re.compile(VALID_CITATION_PATTERN)
 
 
 class ChatService:
     """Answer questions from retrieved documents using an LLM provider."""
 
-    def __init__(self, retriever: DocumentRetriever, llm: LLMProvider) -> None:
+    def __init__(
+        self,
+        retriever: DocumentRetriever,
+        llm: LLMProvider,
+        rag_mode: str = RAG_MODE_BASIC,
+        max_retries: int = DEFAULT_AGENTIC_MAX_RETRIES,
+    ) -> None:
         self.retriever = retriever
         self.llm = llm
+        self.rag_mode = rag_mode
+        self.max_retries = max_retries
 
     def answer(self, question: str) -> ChatResponse:
         """Retrieve context, generate an answer, and validate its citations.
@@ -31,6 +44,8 @@ class ChatService:
             RetrievalError: If document retrieval fails.
             LLMProviderError: If generation fails or citations are invalid.
         """
+        if self.rag_mode == RAG_MODE_AGENTIC:
+            return self._answer_with_agent(question)
         chunks = self.retriever.retrieve(question)
         if not chunks:
             return ChatResponse(
@@ -64,3 +79,15 @@ class ChatService:
                 excerpt=chunk.text,
             ))
         return ChatResponse(answer=answer, citations=citations)
+
+    def _answer_with_agent(self, question: str) -> ChatResponse:
+        """Run LangGraph and convert its final state to an API response."""
+        from app.agents.graph import build_agentic_rag_graph
+
+        result = build_agentic_rag_graph(
+            self.retriever, self.llm, self.max_retries
+        )(question)
+        return ChatResponse(
+            answer=result["answer"],
+            citations=result.get("citations", []),
+        )
