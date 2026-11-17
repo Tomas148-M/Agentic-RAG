@@ -6,7 +6,11 @@ from app.core.config import (
     NO_CONTEXT_NODE,
     RETRY_QUERY_NODE,
     REWRITE_NODE,
+    ROUTE_DOCUMENTS,
+    ROUTE_HYBRID,
+    ROUTE_MCP,
     ROUTE_RETRIEVE,
+    ROUTE_WEB,
     UNSUPPORTED_NODE,
 )
 
@@ -15,7 +19,13 @@ def route_after_classification(state: AgentState) -> str:
     """Choose retrieval or the safe unsupported-request response."""
     return (
         REWRITE_NODE
-        if state.get("route") == ROUTE_RETRIEVE
+        if state.get("route") in {
+            ROUTE_RETRIEVE,
+            ROUTE_DOCUMENTS,
+            ROUTE_WEB,
+            ROUTE_MCP,
+            ROUTE_HYBRID,
+        }
         else UNSUPPORTED_NODE
     )
 

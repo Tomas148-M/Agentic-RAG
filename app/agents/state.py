@@ -10,6 +10,9 @@ class AgentState(TypedDict, total=False):
     question: str
     query: str
     route: str
+    selected_sources: list[str]
+    mcp_tool: str
+    mcp_arguments: dict[str, object]
     chunks: list[RetrievedChunk]
     relevant_chunks: list[RetrievedChunk]
     answer: str

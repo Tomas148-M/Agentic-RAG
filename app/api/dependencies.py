@@ -4,6 +4,7 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException
 
+from app.agents.tools.registry import ToolRegistry
 from app.core.config import Settings, get_settings
 from app.integrations.embeddings.base import EmbeddingProvider
 from app.integrations.llm.base import LLMProvider
@@ -89,5 +90,9 @@ def get_chat_service(
         ChatService: Service configured for the current request.
     """
     return ChatService(
-        retriever, llm, settings.rag_mode, settings.agentic_max_retries
+        retriever,
+        llm,
+        settings.rag_mode,
+        settings.agentic_max_retries,
+        ToolRegistry(retriever, settings),
     )

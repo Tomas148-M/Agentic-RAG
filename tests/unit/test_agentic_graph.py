@@ -24,7 +24,7 @@ def test_graph_routes_unsupported_request_without_retrieval() -> None:
     result = build_agentic_rag_graph(retriever, llm, max_retries=1)("Hello")
 
     assert result["citations"] == []
-    assert "only answer questions" in result["answer"]
+    assert "configured sources" in result["answer"]
     retriever.retrieve.assert_not_called()
     llm.generate.assert_called_once()
 

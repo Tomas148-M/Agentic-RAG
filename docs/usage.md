@@ -59,7 +59,15 @@ Citation validation recognizes source-style markers such as `[S1]`; other format
 
 Set `AGENTIC_RAG_RAG_MODE=agentic` to route chat through the LangGraph workflow. It classifies the request, rewrites the search query, retrieves and grades excerpts, generates a cited answer, and evaluates grounding. Retries are bounded by `AGENTIC_RAG_AGENTIC_MAX_RETRIES` (default: 2). Out-of-scope requests receive a fixed response. If no relevant excerpts are found after retries, the endpoint returns an empty citation list. If answer evaluation still fails, it returns HTTP 502. The default `basic` mode keeps the single-retrieval pipeline.
 
-Routing, relevance grading, generation, and evaluation use the configured LLM. These model judgments do not guarantee factual correctness or protection against prompt injection. Basic mode verifies that cited IDs exist among retrieved chunks, but does not verify that every claim is supported. Similarity search has no relevance threshold, so retrieved excerpts may be unrelated. Documents are untrusted input; prompt instructions alone cannot prevent prompt injection. MCP and web search are not included in the current implementation.
+Routing, relevance grading, generation, and evaluation use the configured LLM. These model judgments do not guarantee factual correctness or protection against prompt injection. Basic mode verifies that cited IDs exist among retrieved chunks, but does not verify that every claim is supported. Similarity search has no relevance threshold, so retrieved chunks may be unrelated. Documents are untrusted input; prompt instructions alone cannot prevent prompt injection.
+
+## MCP and web search
+
+MCP and web search are available in `agentic` mode. Enable web search and provide a Tavily API key with `AGENTIC_RAG_WEB_SEARCH_ENABLED=true` and `AGENTIC_RAG_WEB_SEARCH_API_KEY`. The endpoint, result count, request timeout, and maximum excerpt size are configurable in `.env.example`.
+
+To connect one MCP Streamable HTTP server, set `AGENTIC_RAG_MCP_SERVER_URL`, an explicit JSON array of retrieval-only tool names in `AGENTIC_RAG_MCP_ALLOWED_TOOLS`, and, when required, `AGENTIC_RAG_MCP_AUTH_TOKEN`. The allowlist is required: advertised tools outside it cannot be selected or called. The client performs MCP initialization, paginates tool discovery, and calls selected allowlisted tools after checking their input schemas. If the optional server is unavailable during source discovery, the agent excludes MCP and can still use documents or web search.
+
+The source selector chooses local documents, web search, an MCP tool, or a specific combination of these sources. Only the selected sources execute. Results from selected sources enter the same relevance grading, answer generation, and citation checks. Web citations identify the result URL; MCP citations identify the server tool. Failures during an explicitly selected external tool call return HTTP 503. Keep MCP servers and credentials under your control. MCP and web search are not used by the default `basic` mode.
 
 ## Development checks
 

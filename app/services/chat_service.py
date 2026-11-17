@@ -1,6 +1,7 @@
 import re
 
 from app.agents.prompts.generator import build_rag_prompt
+from app.agents.tools.registry import ToolRegistry
 from app.core.config import (
     CITATION_MARKER_PATTERN,
     DEFAULT_AGENTIC_MAX_RETRIES,
@@ -25,11 +26,13 @@ class ChatService:
         llm: LLMProvider,
         rag_mode: str = RAG_MODE_BASIC,
         max_retries: int = DEFAULT_AGENTIC_MAX_RETRIES,
+        tool_registry: ToolRegistry | None = None,
     ) -> None:
         self.retriever = retriever
         self.llm = llm
         self.rag_mode = rag_mode
         self.max_retries = max_retries
+        self.tool_registry = tool_registry
 
     def answer(self, question: str) -> ChatResponse:
         """Retrieve context, generate an answer, and validate its citations.
@@ -85,7 +88,10 @@ class ChatService:
         from app.agents.graph import build_agentic_rag_graph
 
         result = build_agentic_rag_graph(
-            self.retriever, self.llm, self.max_retries
+            self.retriever,
+            self.llm,
+            self.max_retries,
+            self.tool_registry,
         )(question)
         return ChatResponse(
             answer=result["answer"],

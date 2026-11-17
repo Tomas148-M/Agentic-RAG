@@ -6,22 +6,22 @@ The diagram describes the target architecture for version 1. It is a design over
 
 ![Target Agentic RAG architecture](architecture-agentic-rag.png)
 
-Clients communicate with a FastAPI backend. The agent layer uses LangGraph to route and refine queries, retrieve and grade document context, generate answers, and evaluate results with bounded retries. Potential sources include document retrieval, MCP tools, and web search. Providers are interchangeable, with local embeddings and Chroma supporting document retrieval. The diagram also outlines planned observability and deployment components.
+Clients communicate with a FastAPI backend. The agent layer uses LangGraph to route and refine queries, select information sources, retrieve and grade context, generate answers, and evaluate results with bounded retries. Agentic mode can use document retrieval, a configured MCP server, and Tavily web search. Providers are interchangeable, with local embeddings and Chroma supporting document retrieval. The diagram also outlines planned observability and deployment components.
 
-The current implementation provides the FastAPI skeleton, health endpoint, a common interface with Codex CLI and Ollama adapters, local embeddings, document ingestion, persistent Chroma storage, and a chat endpoint with basic and LangGraph agentic RAG modes. The document API, MCP, web search, and the observability and deployment integrations remain planned.
+The current implementation provides the FastAPI skeleton, health endpoint, a common interface with Codex CLI and Ollama adapters, local embeddings, document ingestion, persistent Chroma storage, and a chat endpoint with basic and LangGraph agentic RAG modes. Agentic mode includes a tool registry, MCP Streamable HTTP client, optional Tavily web search, and LLM-based source selection. The observability and deployment integrations remain planned.
 
 ## LangGraph workflow
 
-The workflow routes document questions through query rewriting, retrieval, context grading, answer generation, and answer evaluation. It retries retrieval when the context is not relevant and retries generation when the answer does not pass evaluation, up to the configured limit. Out-of-scope requests and exhausted retrieval attempts return a fixed response; exhausted answer retries return an error.
+The workflow selects among configured document, MCP, and web sources before query rewriting and retrieval. It grades the returned context, generates an answer, and evaluates the answer. Retrieval retries when the context is not relevant, and generation retries when the answer does not pass evaluation, up to the configured limit. Out-of-scope requests and exhausted retrieval attempts return a fixed response; exhausted answer retries return an error.
 
 ```mermaid
 flowchart TD
-    START([Start]) --> ROUTER[Router<br/>classify request]
+    START([Start]) --> ROUTER[Router<br/>classify and select sources]
 
-    ROUTER -->|document question| REWRITE[Rewrite query]
-    ROUTER -->|out of scope| UNSUPPORTED[Fixed response:<br/>questions must use documents]
+    ROUTER -->|documents / MCP / web / hybrid| REWRITE[Rewrite query]
+    ROUTER -->|out of scope| UNSUPPORTED[Fixed response:<br/>questions must use configured sources]
 
-    REWRITE --> RETRIEVE[Retrieve documents]
+    REWRITE --> RETRIEVE[Run selected tools<br/>documents / MCP / web]
     RETRIEVE --> GRADE[Grade context]
 
     GRADE -->|relevant excerpts| GENERATE[Generate answer<br/>with citations]

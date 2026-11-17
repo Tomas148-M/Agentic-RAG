@@ -15,6 +15,7 @@ from app.agents.nodes.rewrite_query import create_rewrite_query_node
 from app.agents.nodes.router import create_router_node
 from app.agents.prompts.rewriter import RETRIEVAL_RETRY_FEEDBACK
 from app.agents.state import AgentState
+from app.agents.tools.registry import ToolRegistry
 from app.core.config import (
     ANSWER_ERROR_MESSAGE,
     END_NODE,
@@ -40,6 +41,7 @@ def build_agentic_rag_graph(
     retriever: DocumentRetriever,
     llm: LLMProvider,
     max_retries: int,
+    tool_registry: ToolRegistry | None = None,
 ) -> Callable[[str], AgentState]:
     """Build a bounded LangGraph workflow for document question answering.
 
@@ -47,14 +49,18 @@ def build_agentic_rag_graph(
         retriever (DocumentRetriever): Document chunk search dependency.
         llm (LLMProvider): Model used for routing and evaluation tasks.
         max_retries (int): Retry limit for retrieval and generation recovery.
+        tool_registry (ToolRegistry | None): Optional MCP and web tools.
 
     Returns:
         Callable[[str], AgentState]: Runner for a single user question.
     """
     workflow = StateGraph(AgentState)
-    workflow.add_node(ROUTE_NODE, create_router_node(llm))
+    workflow.add_node(ROUTE_NODE, create_router_node(llm, tool_registry))
     workflow.add_node(REWRITE_NODE, create_rewrite_query_node(llm))
-    workflow.add_node(RETRIEVE_NODE, create_retrieve_node(retriever))
+    workflow.add_node(
+        RETRIEVE_NODE,
+        create_retrieve_node(retriever, tool_registry),
+    )
     workflow.add_node(GRADE_CONTEXT_NODE, create_grade_context_node(llm))
     workflow.add_node(GENERATE_NODE, create_generate_node(llm))
     workflow.add_node(EVALUATE_NODE, create_evaluate_node(llm))

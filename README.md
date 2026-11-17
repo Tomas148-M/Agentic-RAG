@@ -4,6 +4,8 @@
 
 FastAPI application for document ingestion and question answering with citations. It supports interchangeable LLM providers and basic or LangGraph-based RAG workflows.
 
+Agentic mode can also use configured MCP tools and Tavily web search.
+
 ![Target Agentic RAG architecture](docs/architecture-agentic-rag.png)
 
 ## Quick start
