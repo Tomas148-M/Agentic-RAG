@@ -26,3 +26,6 @@ env/
 *.swp
 .DS_Store
 Thumbs.db
+
+# Local vector database
+data/chroma/
