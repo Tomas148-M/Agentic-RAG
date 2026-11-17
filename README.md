@@ -2,7 +2,7 @@
 
 **Status: In development.**
 
-This project contains a FastAPI application skeleton, LLM provider adapters, and local document ingestion with embeddings and a persistent vector database.
+This project contains a FastAPI application, local document ingestion with embeddings and a persistent vector database, and basic document question answering with citations.
 
 ## Architecture
 
@@ -34,7 +34,7 @@ Select a provider using `AGENTIC_RAG_LLM_PROVIDER` (`ollama` or `codex`); see `.
 
 For Ollama, start the server and download the model specified by `AGENTIC_RAG_OLLAMA_MODEL` locally (default: `llama3.2`). Set `AGENTIC_RAG_OLLAMA_BASE_URL` to change the server address. For Codex, install and authenticate Codex CLI on the machine running the API; optionally configure the executable path and model. Codex is an agent with tools, and its read-only sandbox may not be available on every platform; it is not equivalent to a purely local LLM.
 
-Both adapters expose a synchronous `generate(prompt: str) -> str` method and raise `LLMProviderError` on failure. The call blocks; run it outside the event loop when using it in an asynchronous endpoint. Use `get_llm_provider` for dependency injection. A chat endpoint and RAG integration have not yet been implemented.
+Both adapters expose a synchronous `generate(prompt: str) -> str` method and raise `LLMProviderError` on failure. The call blocks; run it outside the event loop when using it in an asynchronous endpoint. Use `get_llm_provider` for dependency injection.
 
 ## Document ingestion
 
@@ -48,7 +48,20 @@ The configured Sentence Transformers model runs on CPU. On first use, its weight
 
 Chroma data is stored locally under `data/chroma` by default. Reingesting the same resolved file path replaces its existing chunks, including stale chunks; removing or renaming a source file does not automatically remove its old entries. Source paths are stored in metadata. Use a new collection and reingest documents when changing the embedding model. PDF extraction does not perform OCR, and page numbers are not yet preserved. Do not run concurrent ingestion for the same source.
 
-The vector store exposes similarity search for future integration. This stage does not yet add an answer-generation endpoint.
+## Ask questions about documents
+
+After ingesting documents and starting the API, send a question to `POST /api/v1/chat`:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/chat `
+  -ContentType 'application/json' -Body '{"question":"What do the documents say?"}'
+```
+
+The response contains an `answer` with citation markers such as `[S1]` and a `citations` list with the corresponding source path, chunk index, and excerpt. Source paths and excerpts are returned to the caller. If no chunks are stored, the API returns a message with an empty citation list without calling the LLM. Retrieval failures return HTTP 503; provider failures or invalid citations return HTTP 502.
+
+The service checks that cited IDs correspond to retrieved chunks; it does not verify that each claim is supported by its citation. Similarity search currently has no relevance threshold, so retrieved chunks may be unrelated to the question. Document text is untrusted input, and prompt instructions alone cannot guarantee protection against prompt injection. The Codex CLI provider is an agent: its read-only sandbox may still allow it to read local files. Do not use it with untrusted questions or documents unless the process is isolated from sensitive data. Ensure the configured provider is running and the embedding model is available before using the endpoint.
+
+Citation validation recognizes source-style markers such as `[S1]`; other citation formats are not comprehensively validated. Bracketed letter-and-number labels such as `[C1]` can be mistaken for citations and cause the response to be rejected.
 
 ## Tests
 
