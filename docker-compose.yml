@@ -1,0 +1,55 @@
+services:
+  api:
+    build: .
+    env_file:
+      - .env
+    environment:
+      AGENTIC_RAG_CHROMA_PATH: /app/data/chroma
+      AGENTIC_RAG_PHOENIX_ENABLED: ${AGENTIC_RAG_PHOENIX_ENABLED:-false}
+      AGENTIC_RAG_PHOENIX_ENDPOINT: http://phoenix:6006/v1/traces
+      AGENTIC_RAG_OLLAMA_BASE_URL: ${OLLAMA_DOCKER_URL:-http://host.docker.internal:11434}
+      AGENTIC_RAG_EVALUATION_ENDPOINT: http://api:8000/api/v1/chat
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${AGENTIC_RAG_API_BIND_ADDRESS:-127.0.0.1}:8000:8000"
+    volumes:
+      - chroma_data:/app/data/chroma
+      - embedding_cache:/home/app/.cache/huggingface
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=5)"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  phoenix:
+    image: ${PHOENIX_IMAGE:-arizephoenix/phoenix:latest}
+    environment:
+      PHOENIX_ENABLE_AUTH: "false"
+      PHOENIX_WORKING_DIR: /phoenix
+    ports:
+      - "${PHOENIX_BIND_ADDRESS:-127.0.0.1}:6006:6006"
+    volumes:
+      - phoenix_data:/phoenix
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:6006', timeout=5)"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  chroma_data:
+  embedding_cache:
+  phoenix_data:
