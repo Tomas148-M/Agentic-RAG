@@ -1,0 +1,8 @@
+[
+  {
+    "id": "czech-capital",
+    "question": "What is the capital of Czechia?",
+    "expected_answer_phrases": ["Prague"],
+    "expected_citation_sources": []
+  }
+]

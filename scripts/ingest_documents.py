@@ -2,7 +2,10 @@ import argparse
 from pathlib import Path
 
 from app.core.config import get_settings
-from app.integrations.embeddings.local import LocalEmbeddingProvider
+from app.integrations.embeddings.factory import (
+    create_embedding_provider,
+    get_embedding_identifier,
+)
 from app.rag.ingestion import ingest_document
 from app.rag.vector_store import ChromaVectorStore
 
@@ -21,8 +24,12 @@ def main() -> None:
     if not files:
         parser.error("No supported documents found")
     settings = get_settings()
-    store = ChromaVectorStore(settings.chroma_path, settings.chroma_collection, settings.embedding_model)
-    embeddings = LocalEmbeddingProvider(settings.embedding_model)
+    store = ChromaVectorStore(
+        settings.chroma_path,
+        settings.chroma_collection,
+        get_embedding_identifier(settings),
+    )
+    embeddings = create_embedding_provider(settings)
     for path in files:
         count = ingest_document(path, store, embeddings, settings.chunk_size, settings.chunk_overlap)
         print(f"{path}: stored {count} chunks")

@@ -1,0 +1,55 @@
+name: Build Windows executable
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "app/**"
+      - "pyproject.toml"
+      - "run_api.py"
+      - ".github/workflows/build-windows-exe.yml"
+  pull_request:
+    paths:
+      - "app/**"
+      - "pyproject.toml"
+      - "run_api.py"
+      - ".github/workflows/build-windows-exe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install application and packager
+        run: python -m pip install -e ".[observability]" pyinstaller
+
+      - name: Build executable bundle
+        run: >-
+          pyinstaller --noconfirm --clean --onedir --console
+          --name agentic-rag-api
+          --collect-all chromadb
+          --collect-all sentence_transformers
+          --collect-all torch
+          run_api.py
+
+      - name: Add example configuration and archive bundle
+        run: |
+          Copy-Item .env.example dist/agentic-rag-api/.env.example
+          Compress-Archive -Path dist/agentic-rag-api/* -DestinationPath dist/agentic-rag-api-windows.zip
+
+      - name: Upload executable bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentic-rag-api-windows
+          path: dist/agentic-rag-api-windows.zip
+          if-no-files-found: error

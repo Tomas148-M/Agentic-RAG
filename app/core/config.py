@@ -1,9 +1,11 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+DEFAULT_API_HOST = "127.0.0.1"
+DEFAULT_API_PORT = 8000
 ROUTE_RETRIEVE = "retrieve"
 ROUTE_UNSUPPORTED = "unsupported"
 ROUTE_DOCUMENTS = "DOCUMENTS"
@@ -39,6 +41,25 @@ UNSUPPORTED_REQUEST_ANSWER = (
 ANSWER_ERROR_MESSAGE = "Unable to produce a supported answer"
 DEFAULT_WEB_SEARCH_ENDPOINT = "https://api.tavily.com/search"
 DEFAULT_WEB_SEARCH_RESULTS = 5
+DEFAULT_EMBEDDING_PROVIDER = "ollama"
+SENTENCE_TRANSFORMERS_PROVIDER = "sentence-transformers"
+DEFAULT_EMBEDDING_MODEL = "nomic-embed-text"
+DEFAULT_EMBEDDING_TIMEOUT_SECONDS = 120.0
+DEFAULT_EMBEDDING_DOCUMENT_PREFIX = "search_document: "
+DEFAULT_EMBEDDING_QUERY_PREFIX = "search_query: "
+EMBEDDING_PROVIDER_CACHE_SIZE = 4
+OLLAMA_EMBED_PATH = "/api/embed"
+OLLAMA_EMBED_MODEL_FIELD = "model"
+OLLAMA_EMBED_INPUT_FIELD = "input"
+OLLAMA_EMBEDDINGS_FIELD = "embeddings"
+OLLAMA_EMBED_REQUEST_ERROR = "Ollama embedding request failed"
+OLLAMA_EMBED_RESPONSE_ERROR = "Ollama returned invalid embeddings"
+OLLAMA_EMBED_COUNT_ERROR = "Ollama embedding count did not match input count"
+OLLAMA_EMBED_DIMENSION_ERROR = "Ollama returned inconsistent embedding dimensions"
+EMBEDDING_PROVIDER_UNSUPPORTED_ERROR = "Unsupported embedding provider"
+EMBEDDING_ID_SEPARATOR = ":"
+EMBEDDING_ID_PREFIX_SEPARATOR = "|"
+EMPTY_EMBEDDING_PREFIX = ""
 MCP_PROTOCOL_VERSION = "2025-03-26"
 MCP_CLIENT_NAME = "agentic-rag"
 MCP_CLIENT_VERSION = "0.1.0"
@@ -136,6 +157,58 @@ RETRIEVAL_MCP_TOOL_MISSING_ERROR = "No MCP tool was selected"
 RETRIEVAL_HYBRID_SELECTION_REQUIRED_ERROR = (
     "Hybrid retrieval requires an explicit source selection"
 )
+DEFAULT_PHOENIX_ENDPOINT = "http://127.0.0.1:6006/v1/traces"
+PHOENIX_HTTP_PROTOBUF_PROTOCOL = "http/protobuf"
+PHOENIX_SET_GLOBAL_TRACER_PROVIDER = False
+DEFAULT_PHOENIX_PROJECT_NAME = "agentic-rag"
+DEFAULT_PHOENIX_ENVIRONMENT = "development"
+DEFAULT_EVALUATION_ENDPOINT = "http://127.0.0.1:8000/api/v1/chat"
+DEFAULT_EVALUATION_TIMEOUT_SECONDS = 120.0
+DEFAULT_EVALUATION_DATASET_PATH = "tests/evaluation/rag_cases.json"
+PHOENIX_TRACE_NAME = "agentic-rag.chat"
+PHOENIX_GENERATION_NAME = "agentic-rag.llm.generate"
+PHOENIX_TRACER_NAME = "agentic-rag"
+PHOENIX_CHAIN_KIND = "CHAIN"
+PHOENIX_LLM_KIND = "LLM"
+PHOENIX_INPUT_VALUE_ATTRIBUTE = "input.value"
+PHOENIX_OUTPUT_VALUE_ATTRIBUTE = "output.value"
+PHOENIX_SPAN_KIND_ATTRIBUTE = "openinference.span.kind"
+PHOENIX_MODE_ATTRIBUTE = "agentic_rag.mode"
+PHOENIX_ENVIRONMENT_ATTRIBUTE = "deployment.environment.name"
+PHOENIX_CITATION_COUNT_ATTRIBUTE = "agentic_rag.citation_count"
+PHOENIX_PROMPT_LENGTH_ATTRIBUTE = "agentic_rag.prompt_length"
+PHOENIX_RESPONSE_LENGTH_ATTRIBUTE = "agentic_rag.response_length"
+PHOENIX_INITIALIZATION_WARNING = "Phoenix tracing could not be initialized"
+PHOENIX_SPAN_WARNING = "Phoenix span update failed"
+PHOENIX_CAPTURE_DISABLED_VALUE = "content capture disabled"
+EVALUATION_ANSWER_FIELD = "answer"
+EVALUATION_CITATIONS_FIELD = "citations"
+EVALUATION_CITATION_SOURCE_FIELD = "source"
+EVALUATION_QUESTION_FIELD = "question"
+EVALUATION_ID_FIELD = "id"
+EVALUATION_EXPECTED_PHRASES_FIELD = "expected_answer_phrases"
+EVALUATION_EXPECTED_SOURCES_FIELD = "expected_citation_sources"
+EVALUATION_RESULT_FIELD = "passed"
+EVALUATION_RESULTS_FIELD = "results"
+EVALUATION_SUMMARY_FIELD = "summary"
+EVALUATION_CITATION_COVERAGE_FIELD = "citation_coverage"
+EVALUATION_ANSWER_MATCH_RATE_FIELD = "answer_match_rate"
+EVALUATION_CASES_PASSED_FIELD = "cases_passed"
+EVALUATION_CASES_TOTAL_FIELD = "cases_total"
+EVALUATION_JSON_INDENT = 2
+EVALUATION_SUCCESS_EXIT_CODE = 0
+EVALUATION_FAILURE_EXIT_CODE = 1
+EVALUATION_ERROR_EXIT_CODE = 2
+EVALUATION_HTTP_ERROR_TEMPLATE = "Case %s request failed: %s"
+EVALUATION_DATASET_ERROR = "Evaluation dataset must be a non-empty JSON array"
+EVALUATION_CASE_INVALID_ERROR = "Evaluation case must be a JSON object"
+EVALUATION_RESPONSE_INVALID_ERROR = "Chat response must be a JSON object"
+EVALUATION_CASE_ID_PREFIX = "case-"
+EVALUATION_ANSWER_KEY = "answer_match"
+EVALUATION_CITATION_KEY = "citation_match"
+EVALUATION_PASS_RATE_KEY = "pass_rate"
+EVALUATION_HTTP_CLIENT_ERROR = "Evaluation requests failed"
+EVALUATION_JSON_DECODE_ERROR = "Evaluation dataset is not valid JSON"
 
 
 class Settings(BaseSettings):
@@ -150,7 +223,11 @@ class Settings(BaseSettings):
         codex_executable (str): Codex CLI executable on the server.
         codex_model (str | None): Optional Codex model override.
         llm_timeout_seconds (float): Maximum wait for provider responses.
-        embedding_model (str): Sentence Transformers model name or local path.
+        embedding_provider (str): Backend used to generate embeddings.
+        embedding_model (str): Name of the configured embedding model.
+        embedding_timeout_seconds (float): Request timeout for embedding generation.
+        embedding_document_prefix (str): Prefix applied when embedding documents.
+        embedding_query_prefix (str): Prefix applied when embedding search queries.
         chroma_path (str): Directory for persistent Chroma storage.
         chroma_collection (str): Collection used for document chunks.
         chunk_size (int): Maximum number of characters per chunk.
@@ -164,6 +241,15 @@ class Settings(BaseSettings):
         mcp_server_url (str | None): Streamable HTTP MCP server endpoint.
         mcp_auth_token (str | None): Optional bearer token for the MCP server.
         mcp_allowed_tools (list[str]): MCP tools explicitly allowed to run.
+        phoenix_enabled (bool): Whether to send chat traces to Phoenix.
+        phoenix_endpoint (str): Phoenix OTLP collector endpoint.
+        phoenix_project_name (str): Project name used for emitted traces.
+        phoenix_api_key (SecretStr | None): Optional key for an authenticated collector.
+        phoenix_environment (str): Environment tag attached to traces.
+        phoenix_capture_content (bool): Whether to store prompts and answers.
+        evaluation_endpoint (str): Chat API URL used by the evaluation script.
+        evaluation_timeout_seconds (float): Per-case chat request timeout.
+        evaluation_dataset_path (str): JSON evaluation case file path.
         tool_timeout_seconds (float): Timeout for external tool requests.
         tool_result_max_chars (int): Maximum text retained for each tool result.
     """
@@ -178,7 +264,15 @@ class Settings(BaseSettings):
     codex_executable: str = "codex"
     codex_model: str | None = None
     llm_timeout_seconds: float = Field(default=120.0, gt=0, allow_inf_nan=False)
-    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    embedding_provider: Literal["ollama", "sentence-transformers"] = (
+        DEFAULT_EMBEDDING_PROVIDER
+    )
+    embedding_model: str = DEFAULT_EMBEDDING_MODEL
+    embedding_timeout_seconds: float = Field(
+        default=DEFAULT_EMBEDDING_TIMEOUT_SECONDS, gt=0, allow_inf_nan=False
+    )
+    embedding_document_prefix: str = DEFAULT_EMBEDDING_DOCUMENT_PREFIX
+    embedding_query_prefix: str = DEFAULT_EMBEDDING_QUERY_PREFIX
     chroma_path: str = "data/chroma"
     chroma_collection: str = "documents"
     chunk_size: int = Field(default=800, gt=0)
@@ -198,6 +292,17 @@ class Settings(BaseSettings):
     mcp_allowed_tools: list[str] = Field(default_factory=list)
     tool_timeout_seconds: float = Field(default=20.0, gt=0, allow_inf_nan=False)
     tool_result_max_chars: int = Field(default=DEFAULT_TOOL_RESULT_CHARS, gt=0)
+    phoenix_enabled: bool = False
+    phoenix_endpoint: str = DEFAULT_PHOENIX_ENDPOINT
+    phoenix_project_name: str = DEFAULT_PHOENIX_PROJECT_NAME
+    phoenix_api_key: SecretStr | None = None
+    phoenix_environment: str = DEFAULT_PHOENIX_ENVIRONMENT
+    phoenix_capture_content: bool = False
+    evaluation_endpoint: str = DEFAULT_EVALUATION_ENDPOINT
+    evaluation_timeout_seconds: float = Field(
+        default=DEFAULT_EVALUATION_TIMEOUT_SECONDS, gt=0, allow_inf_nan=False
+    )
+    evaluation_dataset_path: str = DEFAULT_EVALUATION_DATASET_PATH
 
     @model_validator(mode="after")
     def validate_chunk_settings(self) -> "Settings":

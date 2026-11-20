@@ -32,7 +32,7 @@ class ChromaVectorStore:
         """
         if not chunks:
             raise ValueError("Cannot ingest a document without chunks")
-        vectors = embeddings.embed(chunks)
+        vectors = embeddings.embed_documents(chunks)
         if len(vectors) != len(chunks):
             raise ValueError("Embedding count does not match chunk count")
         source_hash = hashlib.sha256(document.source.encode("utf-8")).hexdigest()
@@ -62,7 +62,7 @@ class ChromaVectorStore:
             raise ValueError("Query must be non-empty and limit must be positive")
         if self.collection.count() == 0:
             return []
-        vectors = embeddings.embed([query])
+        vectors = embeddings.embed_queries([query])
         if len(vectors) != 1:
             raise ValueError("Expected exactly one query embedding")
         result = self.collection.query(

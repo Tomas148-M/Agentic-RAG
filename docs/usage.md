@@ -36,11 +36,19 @@ Ingest a UTF-8 `.txt`, `.md`, or text-based `.pdf` file, or recursively ingest a
 python -m scripts.ingest_documents data/documents
 ```
 
-Sentence Transformers runs on CPU. On first use, model weights may be downloaded from Hugging Face; subsequent runs can use the cache. PyTorch dependencies can require substantial disk space.
+The default embedding backend is Ollama with `nomic-embed-text`. Start Ollama and pull the model before ingestion:
 
-Configure `AGENTIC_RAG_EMBEDDING_MODEL`, `AGENTIC_RAG_CHROMA_PATH`, `AGENTIC_RAG_CHROMA_COLLECTION`, `AGENTIC_RAG_CHUNK_SIZE`, and `AGENTIC_RAG_CHUNK_OVERLAP` in `.env` as needed. Chunk sizes are characters, not model tokens, and long chunks may be truncated. Overlap must be smaller than chunk size.
+```powershell
+ollama pull nomic-embed-text
+```
 
-Chroma data defaults to `data/chroma`. Reingesting a source path replaces its chunks, including stale chunks. Removing or renaming a source file does not remove old entries. Source paths are stored in metadata. When changing embedding models, use a new collection and reingest documents. PDF ingestion does not perform OCR or preserve page numbers. Avoid concurrent ingestion of the same source.
+The API uses `AGENTIC_RAG_OLLAMA_BASE_URL` for embedding requests. To use Sentence Transformers instead, set `AGENTIC_RAG_EMBEDDING_PROVIDER=sentence-transformers` and set `AGENTIC_RAG_EMBEDDING_MODEL` to a Hugging Face model name or local model path. That alternative runs on CPU, may download weights on first use, and can require substantial disk space for PyTorch.
+
+Configure `AGENTIC_RAG_EMBEDDING_PROVIDER`, `AGENTIC_RAG_EMBEDDING_MODEL`, `AGENTIC_RAG_EMBEDDING_TIMEOUT_SECONDS`, `AGENTIC_RAG_CHROMA_PATH`, `AGENTIC_RAG_CHROMA_COLLECTION`, `AGENTIC_RAG_CHUNK_SIZE`, and `AGENTIC_RAG_CHUNK_OVERLAP` in `.env` as needed. Chunk sizes are characters, not model tokens, and long chunks may be truncated. Overlap must be smaller than chunk size.
+
+The default Nomic configuration prefixes document chunks with `search_document: ` and questions with `search_query: `, as expected by the model. Configure these with `AGENTIC_RAG_EMBEDDING_DOCUMENT_PREFIX` and `AGENTIC_RAG_EMBEDDING_QUERY_PREFIX`; set them to empty strings for models that do not use task prefixes. The prefixes are part of the Chroma embedding identity, so changing either requires a new collection and reingestion.
+
+Chroma data defaults to `data/chroma`. Reingesting a source path replaces its chunks, including stale chunks. Removing or renaming a source file does not remove old entries. Source paths are stored in metadata. Changing the embedding provider or model changes the collection's embedding identity: configure a new `AGENTIC_RAG_CHROMA_COLLECTION` and reingest documents before querying. PDF ingestion does not perform OCR or preserve page numbers. Avoid concurrent ingestion of the same source.
 
 ## Chat and citations
 
@@ -68,6 +76,42 @@ MCP and web search are available in `agentic` mode. Enable web search and provid
 To connect one MCP Streamable HTTP server, set `AGENTIC_RAG_MCP_SERVER_URL`, an explicit JSON array of retrieval-only tool names in `AGENTIC_RAG_MCP_ALLOWED_TOOLS`, and, when required, `AGENTIC_RAG_MCP_AUTH_TOKEN`. The allowlist is required: advertised tools outside it cannot be selected or called. The client performs MCP initialization, paginates tool discovery, and calls selected allowlisted tools after checking their input schemas. If the optional server is unavailable during source discovery, the agent excludes MCP and can still use documents or web search.
 
 The source selector chooses local documents, web search, an MCP tool, or a specific combination of these sources. Only the selected sources execute. Results from selected sources enter the same relevance grading, answer generation, and citation checks. Web citations identify the result URL; MCP citations identify the server tool. Failures during an explicitly selected external tool call return HTTP 503. Keep MCP servers and credentials under your control. MCP and web search are not used by the default `basic` mode.
+
+## Phoenix tracing
+
+Tracing is disabled by default. Install the optional Phoenix integration for a local run with:
+
+```powershell
+python -m pip install -e ".[dev,observability]"
+```
+
+Set `AGENTIC_RAG_PHOENIX_ENABLED=true` and configure `AGENTIC_RAG_PHOENIX_ENDPOINT` (self-hosted default: `http://127.0.0.1:6006/v1/traces`). For an authenticated Phoenix collector, set `AGENTIC_RAG_PHOENIX_API_KEY`. `AGENTIC_RAG_PHOENIX_PROJECT_NAME` and `AGENTIC_RAG_PHOENIX_ENVIRONMENT` label the trace project and deployment environment. The application records a chat span and child LLM generation spans. It records response length and citation count; prompt and answer text are omitted unless `AGENTIC_RAG_PHOENIX_CAPTURE_CONTENT=true`. If Phoenix is unavailable, tracing initialization is skipped or export errors are logged without failing chat requests.
+
+## Evaluation
+
+Start the API, ingest documents that match the cases in `tests/evaluation/rag_cases.json`, then run:
+
+```powershell
+python -m scripts.evaluate_chat
+```
+
+The harness sends each case to `AGENTIC_RAG_EVALUATION_ENDPOINT` and reports answer phrase match rate, citation coverage, and overall pass rate. Set `AGENTIC_RAG_EVALUATION_DATASET_PATH` to use another JSON dataset. Each case requires `question` and `expected_answer_phrases`; `expected_citation_sources` is optional. Source expectations are case-insensitive substring checks. These deterministic checks are useful for regression tests, but they do not judge semantic correctness; agentic mode also performs its configured LLM-based answer evaluation.
+
+## Docker Compose
+
+Copy `.env.example` to `.env`, then start the API and Phoenix:
+
+```powershell
+docker compose up --build
+```
+
+The API is available at `http://127.0.0.1:8000`; Phoenix is at `http://127.0.0.1:6006`. Local Compose disables Phoenix authentication because the service is bound to localhost for development. Do not expose this setup to a network; enable and configure Phoenix authentication before doing so. Compose persists Chroma, Phoenix data, and a Hugging Face model cache for the optional Sentence Transformers provider. The default Ollama embedding model is pulled and cached by Ollama on the host. The API connects to host Ollama through `host.docker.internal`; set `OLLAMA_DOCKER_URL` in `.env` to override that address. Tracing is off unless `AGENTIC_RAG_PHOENIX_ENABLED=true` is set. Run the evaluation harness inside Compose with `docker compose exec api python -m scripts.evaluate_chat`.
+
+## Windows executable
+
+The `Build Windows executable` GitHub Actions workflow packages the API as a Windows console application. Start it manually from the Actions tab or download the ZIP artifact produced by a matching push or pull request. Extract the ZIP, copy `.env.example` to `.env`, configure the providers, and run `agentic-rag-api.exe` from the extracted folder. The API listens on `http://127.0.0.1:8000`.
+
+The executable bundle contains the Python runtime and application dependencies, but Ollama and Phoenix remain separate services. Keep Ollama running and make sure the selected models are installed there. Chroma data is stored relative to the current working directory unless `AGENTIC_RAG_CHROMA_PATH` is changed.
 
 ## Development checks
 

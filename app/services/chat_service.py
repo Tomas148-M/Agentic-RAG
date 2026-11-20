@@ -10,6 +10,7 @@ from app.core.config import (
     VALID_CITATION_PATTERN,
 )
 from app.integrations.llm.base import LLMProvider, LLMProviderError
+from app.observability.phoenix import PhoenixObservability
 from app.rag.retriever import DocumentRetriever
 from app.schemas.chat import ChatResponse, Citation
 
@@ -27,12 +28,14 @@ class ChatService:
         rag_mode: str = RAG_MODE_BASIC,
         max_retries: int = DEFAULT_AGENTIC_MAX_RETRIES,
         tool_registry: ToolRegistry | None = None,
+        observability: PhoenixObservability | None = None,
     ) -> None:
         self.retriever = retriever
         self.llm = llm
         self.rag_mode = rag_mode
         self.max_retries = max_retries
         self.tool_registry = tool_registry
+        self.observability = observability
 
     def answer(self, question: str) -> ChatResponse:
         """Retrieve context, generate an answer, and validate its citations.
@@ -47,6 +50,17 @@ class ChatService:
             RetrievalError: If document retrieval fails.
             LLMProviderError: If generation fails or citations are invalid.
         """
+        if self.observability is None:
+            return self._answer_untraced(question)
+        with self.observability.chat_trace(question, self.rag_mode) as span:
+            response = self._answer_untraced(question)
+            self.observability.record_chat_output(
+                span, response.answer, len(response.citations)
+            )
+            return response
+
+    def _answer_untraced(self, question: str) -> ChatResponse:
+        """Run the selected RAG pipeline without creating a chat-level span."""
         if self.rag_mode == RAG_MODE_AGENTIC:
             return self._answer_with_agent(question)
         chunks = self.retriever.retrieve(question)

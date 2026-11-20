@@ -5,10 +5,19 @@ from typing import Annotated
 from fastapi import Depends, HTTPException
 
 from app.agents.tools.registry import ToolRegistry
-from app.core.config import Settings, get_settings
+from app.core.config import (
+    EMBEDDING_PROVIDER_CACHE_SIZE,
+    Settings,
+    get_settings,
+)
 from app.integrations.embeddings.base import EmbeddingProvider
+from app.integrations.embeddings.factory import (
+    create_embedding_provider,
+    get_embedding_identifier,
+)
 from app.integrations.llm.base import LLMProvider
 from app.integrations.llm.factory import create_llm_provider
+from app.observability.phoenix import PhoenixObservability
 from app.rag.retriever import DocumentRetriever
 from app.rag.vector_store import ChromaVectorStore
 from app.services.chat_service import ChatService
@@ -28,27 +37,61 @@ def get_llm_provider(
     Returns:
         LLMProvider: Configured text generation provider.
     """
-    return create_llm_provider(settings)
+    observability = PhoenixObservability(settings)
+    return observability.instrument(create_llm_provider(settings))
 
 
-@lru_cache(maxsize=1)
-def _load_embedding_model(model_name: str) -> EmbeddingProvider:
-    from app.integrations.embeddings.local import LocalEmbeddingProvider
-
-    return LocalEmbeddingProvider(model_name)
+@lru_cache(maxsize=EMBEDDING_PROVIDER_CACHE_SIZE)
+def _load_embedding_provider(
+    provider_name: str,
+    model_name: str,
+    ollama_base_url: str,
+    timeout_seconds: float,
+    document_prefix: str,
+    query_prefix: str,
+) -> EmbeddingProvider:
+    """Cache embedding clients and local model instances per configuration."""
+    settings = Settings(
+        embedding_provider=provider_name,
+        embedding_model=model_name,
+        ollama_base_url=ollama_base_url,
+        embedding_timeout_seconds=timeout_seconds,
+        embedding_document_prefix=document_prefix,
+        embedding_query_prefix=query_prefix,
+        _env_file=None,
+    )
+    return create_embedding_provider(settings)
 
 
 class _LazyEmbeddings(EmbeddingProvider):
-    def __init__(self, model_name: str) -> None:
-        self.model_name = model_name
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        """Load the configured model when vectors are actually needed."""
+        """Create and cache the configured provider when vectors are needed."""
+        return self._provider().embed(texts)
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """Forward document-specific encoding to the configured provider."""
+        return self._provider().embed_documents(texts)
+
+    def embed_queries(self, texts: list[str]) -> list[list[float]]:
+        """Forward query-specific encoding to the configured provider."""
+        return self._provider().embed_queries(texts)
+
+    def _provider(self) -> EmbeddingProvider:
+        """Create and cache the configured provider when vectors are needed."""
         # lru_cache alone does not prevent concurrent cache misses from loading
         # the same large model multiple times.
         with _embedding_model_lock:
-            model = _load_embedding_model(self.model_name)
-        return model.embed(texts)
+            return _load_embedding_provider(
+                self.settings.embedding_provider,
+                self.settings.embedding_model,
+                self.settings.ollama_base_url,
+                self.settings.embedding_timeout_seconds,
+                self.settings.embedding_document_prefix,
+                self.settings.embedding_query_prefix,
+            )
 
 
 def get_retriever(
@@ -65,13 +108,13 @@ def get_retriever(
     try:
         store = ChromaVectorStore(
             settings.chroma_path, settings.chroma_collection,
-            settings.embedding_model,
+            get_embedding_identifier(settings),
         )
     except Exception as exc:
         raise HTTPException(
             status_code=503, detail="Document store unavailable"
         ) from exc
-    return DocumentRetriever(store, _LazyEmbeddings(settings.embedding_model))
+    return DocumentRetriever(store, _LazyEmbeddings(settings))
 
 
 def get_chat_service(
@@ -95,4 +138,5 @@ def get_chat_service(
         settings.rag_mode,
         settings.agentic_max_retries,
         ToolRegistry(retriever, settings),
+        PhoenixObservability(settings),
     )

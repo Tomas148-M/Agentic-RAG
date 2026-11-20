@@ -6,6 +6,10 @@ FastAPI application for document ingestion and question answering with citations
 
 Agentic mode can also use configured MCP tools and Tavily web search.
 
+Optional Phoenix tracing, a deterministic evaluation runner, and Docker Compose deployment are documented in the [usage guide](docs/usage.md).
+
+The Windows executable pipeline creates a packaged API bundle on GitHub Actions. It still requires Ollama as a separate service; see the [usage guide](docs/usage.md) for configuration details.
+
 ![Target Agentic RAG architecture](docs/architecture-agentic-rag.png)
 
 ## Quick start

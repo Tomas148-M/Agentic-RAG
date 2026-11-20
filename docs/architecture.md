@@ -8,7 +8,7 @@ The diagram describes the target architecture for version 1. It is a design over
 
 Clients communicate with a FastAPI backend. The agent layer uses LangGraph to route and refine queries, select information sources, retrieve and grade context, generate answers, and evaluate results with bounded retries. Agentic mode can use document retrieval, a configured MCP server, and Tavily web search. Providers are interchangeable, with local embeddings and Chroma supporting document retrieval. The diagram also outlines planned observability and deployment components.
 
-The current implementation provides the FastAPI skeleton, health endpoint, a common interface with Codex CLI and Ollama adapters, local embeddings, document ingestion, persistent Chroma storage, and a chat endpoint with basic and LangGraph agentic RAG modes. Agentic mode includes a tool registry, MCP Streamable HTTP client, optional Tavily web search, and LLM-based source selection. The observability and deployment integrations remain planned.
+The current implementation provides the FastAPI skeleton, health endpoint, a common interface with Codex CLI and Ollama adapters, local embeddings, document ingestion, persistent Chroma storage, and a chat endpoint with basic and LangGraph agentic RAG modes. Agentic mode includes a tool registry, MCP Streamable HTTP client, optional Tavily web search, and LLM-based source selection. Optional Phoenix OpenTelemetry tracing, a deterministic evaluation runner, and Docker Compose deployment are available.
 
 ## LangGraph workflow
 
