@@ -12,6 +12,33 @@ actionable findings with severity, file and line references, and supporting
 evidence. Explicitly say when there are no findings and identify review
 limitations. Do not claim user acceptance.
 
+Run Bandit against application and script code:
+
+```sh
+python -m bandit -r app scripts
+```
+
+Assess each reported issue in context, report actionable findings with
+severity and evidence, and do not dismiss findings solely because the scanner
+reports a low confidence level. If Bandit cannot run, report that as a review
+limitation rather than implying the security scan passed.
+
+Audit installed Python dependencies with:
+
+```sh
+python -m pip_audit
+```
+
+Report vulnerable package versions and advisory identifiers, and distinguish
+direct dependencies from transitive dependencies when the tool provides that
+information. Do not suppress advisories without a documented reason. If the
+audit cannot run, report that as a review limitation.
+
+Check that CI writes reports only to the console unless the user explicitly
+requests saved outputs. The CycloneDX SBOM should be generated from CI's
+installed Python environment and printed to the console; do not require an
+uploaded artifact.
+
 Check that application constants and configuration parameters, except prompt
 text, are defined in `app/core/config.py` and referenced from implementation
 modules. Values that users or deployments may need to change should use

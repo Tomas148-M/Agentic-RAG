@@ -109,9 +109,7 @@ The API is available at `http://127.0.0.1:8000`; Phoenix is at `http://127.0.0.1
 
 ## Windows executable
 
-The `Build Windows executable` GitHub Actions workflow packages the API as a Windows console application. Start it manually from the Actions tab or download the ZIP artifact produced by a matching push or pull request. Extract the ZIP, copy `.env.example` to `.env`, configure the providers, and run `agentic-rag-api.exe` from the extracted folder. The API listens on `http://127.0.0.1:8000`.
-
-The executable bundle contains the Python runtime and application dependencies, but Ollama and Phoenix remain separate services. Keep Ollama running and make sure the selected models are installed there. Chroma data is stored relative to the current working directory unless `AGENTIC_RAG_CHROMA_PATH` is changed.
+The `Validate Windows executable build` GitHub Actions workflow checks that PyInstaller can package the API as a Windows console application. The build output is temporary on the runner and is not published as a downloadable artifact. The executable bundle contains the Python runtime and application dependencies, but Ollama and Phoenix remain separate services. Keep Ollama running and make sure the selected models are installed there. Chroma data is stored relative to the current working directory unless `AGENTIC_RAG_CHROMA_PATH` is changed.
 
 ## Development checks
 
