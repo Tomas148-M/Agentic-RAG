@@ -34,6 +34,12 @@ direct dependencies from transitive dependencies when the tool provides that
 information. Do not suppress advisories without a documented reason. If the
 audit cannot run, report that as a review limitation.
 
+For the current ChromaDB advisories, verify that the application still uses
+only the embedded `PersistentClient` and does not start or expose Chroma's
+HTTP server. The four documented `PYSEC-2026-*` ignores in CI are conditional
+on that architecture and on the absence of a patched release. Remove or
+reassess them if either condition changes.
+
 Check that CI writes reports only to the console unless the user explicitly
 requests saved outputs. The CycloneDX SBOM should be generated from CI's
 installed Python environment and printed to the console; do not require an

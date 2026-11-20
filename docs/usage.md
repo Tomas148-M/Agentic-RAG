@@ -118,4 +118,6 @@ python -m pytest
 python -m ruff check .
 ```
 
+CI upgrades pip before installing project dependencies, then runs `pip-audit`. The audit currently excludes four ChromaDB advisories (`PYSEC-2026-311`, `PYSEC-2026-3813`, `PYSEC-2026-3814`, and `PYSEC-2026-3815`) because this application uses Chroma only through the embedded `PersistentClient`; it does not start or expose Chroma's HTTP server. The advisories target server API routes, and no patched ChromaDB release is currently listed. Do not enable or expose a Chroma server until these exclusions are revisited against a fixed release.
+
 See [AGENTS.md](../AGENTS.md) for the project change workflow.
