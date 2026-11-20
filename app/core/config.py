@@ -9,7 +9,8 @@ DEFAULT_API_PORT = 8000
 ROUTE_RETRIEVE = "retrieve"
 ROUTE_UNSUPPORTED = "unsupported"
 ROUTE_DOCUMENTS = "DOCUMENTS"
-ROUTE_UNSUPPORTED_TOKEN = "UNSUPPORTED"
+# Routing protocol token, not a credential.
+ROUTE_UNSUPPORTED_TOKEN = "UNSUPPORTED"  # nosec B105
 ROUTE_WEB = "WEB"
 ROUTE_MCP = "MCP"
 ROUTE_HYBRID = "HYBRID"
@@ -24,7 +25,8 @@ NO_CONTEXT_NODE = "no_context"
 UNSUPPORTED_NODE = "unsupported"
 FAIL_NODE = "fail"
 END_NODE = "__end__"
-EVALUATION_PASS = "PASS"
+# Evaluation result token, not a credential.
+EVALUATION_PASS = "PASS"  # nosec B105
 CONTEXT_RELEVANT = "YES"
 RAG_MODE_BASIC = "basic"
 RAG_MODE_AGENTIC = "agentic"
@@ -206,7 +208,8 @@ EVALUATION_RESPONSE_INVALID_ERROR = "Chat response must be a JSON object"
 EVALUATION_CASE_ID_PREFIX = "case-"
 EVALUATION_ANSWER_KEY = "answer_match"
 EVALUATION_CITATION_KEY = "citation_match"
-EVALUATION_PASS_RATE_KEY = "pass_rate"
+# JSON report field, not a credential.
+EVALUATION_PASS_RATE_KEY = "pass_rate"  # nosec B105
 EVALUATION_HTTP_CLIENT_ERROR = "Evaluation requests failed"
 EVALUATION_JSON_DECODE_ERROR = "Evaluation dataset is not valid JSON"
 

@@ -1,4 +1,5 @@
-import subprocess
+# This adapter must invoke the configured Codex CLI and does not use a shell.
+import subprocess  # nosec B404
 
 from app.integrations.llm.base import LLMProvider, LLMProviderError
 
@@ -28,10 +29,12 @@ class CodexProvider(LLMProvider):
             command.extend(["--model", self.model])
         command.append("-")
         try:
+            # The command uses fixed arguments; the untrusted prompt is sent via
+            # stdin.
             result = subprocess.run(
                 command, input=prompt, capture_output=True, text=True,
                 encoding="utf-8", timeout=self.timeout, check=False,
-            )
+            )  # nosec B603
         except (OSError, subprocess.TimeoutExpired, UnicodeError) as exc:
             raise LLMProviderError("Codex CLI could not complete the request") from exc
         if result.returncode != 0:
