@@ -22,13 +22,74 @@ The health endpoint is `http://127.0.0.1:8000/api/v1/health`; interactive API do
 
 ## LLM provider
 
-Choose `ollama` or `codex` with `AGENTIC_RAG_LLM_PROVIDER`. Settings load at startup, so restart the application after changing `.env`.
+Choose `ollama`, `codex`, or `codex-bridge` with `AGENTIC_RAG_LLM_PROVIDER`. Settings load at startup, so restart the application after changing `.env`.
 
-For Ollama, run the server and download the configured model (default: `llama3.2`). Set `AGENTIC_RAG_OLLAMA_BASE_URL` to change its address. For Codex, install and authenticate Codex CLI on the API host; the executable path and model can also be configured. Codex runs as an agent, and its read-only sandbox may not be available on every platform. It may read local files, so isolate it from sensitive data when handling untrusted questions or documents.
+For Ollama, run the server and download the configured model (default: `llama3.2`). Set `AGENTIC_RAG_OLLAMA_BASE_URL` to change its address. For `codex`, install and authenticate Codex CLI on the API host; the executable path and model can also be configured. Codex runs as an agent, and its read-only sandbox may not be available on every platform. Codex can read files available to the host user and may return their contents, including `.env` values. Untrusted questions or documents can contain prompt injection that encourages such disclosure, so do not run Codex with access to sensitive files when processing untrusted input.
+
+### Docker with Codex CLI on the host
+
+When Docker runs on the same computer as the authenticated Codex CLI, use the small host bridge instead of mounting Codex credentials or host files into the API container. Add a long random value for `AGENTIC_RAG_CODEX_BRIDGE_TOKEN` to `.env`, then start the bridge from the project directory in a host terminal:
+
+```powershell
+python -m scripts.run_codex_bridge
+```
+
+Set `AGENTIC_RAG_LLM_PROVIDER=codex-bridge` in `.env`, then start the API with `docker compose up --build`. Compose points the API at `http://host.docker.internal:8765`; change `AGENTIC_RAG_CODEX_BRIDGE_URL` only if you configured a different host address or port. The bridge defaults to listening on `127.0.0.1`. If Docker Desktop cannot reach it, set `AGENTIC_RAG_CODEX_BRIDGE_BIND_HOST` to an interface reachable from Docker Desktop, commonly `0.0.0.0`, and use a firewall rule limited to Docker Desktop's local network. It has one operation (`POST /generate`), requires the bearer token, rejects extra request fields, limits the request body before JSON parsing, caps prompt size, hides CLI errors, and exposes no general command or file interface.
+
+The bridge must remain running while the container uses Codex. On Windows, if the container cannot connect, check that the bridge process is listening on the configured port and that Windows Firewall permits inbound traffic from Docker Desktop to port 8765. Do not create a broad public or LAN firewall exception; restrict access to Docker Desktop's local networking where possible. The bearer token is shared by the container and bridge, so keep `.env` private and rotate the token if it is exposed. The bridge does not isolate Codex from the host: Codex still runs as your host user and can read accessible files, including `.env`, then include their contents in a response. Prompt injection in untrusted indexed documents can try to cause this. Treat the bridge as trusted local testing only and do not give the host Codex process access to sensitive files while processing untrusted content.
 
 Both adapters expose `generate(prompt: str) -> str` and raise `LLMProviderError` on failure. Calls are synchronous and should run outside the event loop in asynchronous endpoints. Use `get_llm_provider` for dependency injection.
 
 ## Document ingestion
+
+### Quick start with Docker on Windows
+
+Run these commands from the project directory. Start Ollama from the Windows Start menu (or run `ollama serve` in a separate terminal) and confirm the embedding model is already installed with `ollama list`; it must include `nomic-embed-text`. Keep the local Codex bridge running in another terminal:
+
+```powershell
+python -m scripts.run_codex_bridge
+```
+
+Start the API from an image that is already available locally. This command creates the container if needed and explicitly disables building and pulling images. If the image is not available yet, it fails without downloading anything. `docker compose up --build` rebuilds the image and may download dependencies, so use it only when you intend to build/update the image.
+
+```powershell
+docker compose up -d --no-build --pull never --no-deps api
+```
+
+Put `.md`, `.txt`, or text-based `.pdf` files under `data/documents`, then ingest that directory into the persistent Chroma database used by the API:
+
+```powershell
+docker compose run --rm --no-deps -v "${PWD}\data\documents:/app/data/documents:ro" api python -m scripts.ingest_documents /app/data/documents
+```
+
+The command reports how many chunks were stored for each file. Running it again updates chunks for the same source files; deleting or renaming a file does not remove its old chunks automatically. Ollama must be running and have `nomic-embed-text` available during ingestion.
+
+To inspect the chunks without generating embeddings or writing to Chroma, use the JSON export script instead:
+
+```powershell
+python -m scripts.export_chunks data/documents
+```
+
+It supports the same `.txt`, `.md`, and text-based `.pdf` inputs and recursively scans directories. For each source it overwrites a UTF-8 sidecar beside the file, such as `Cestovni nahrady.md.chunks.json`, with the resolved source path, chunk settings, and ordered chunk text. It uses the configured `AGENTIC_RAG_CHUNK_SIZE` and `AGENTIC_RAG_CHUNK_OVERLAP`; it does not contact Ollama, Codex, or the vector database. Generated `.json` sidecars are ignored on later runs.
+
+Check the API, then send a chat request. UTF-8 bytes avoid PowerShell quoting and encoding problems:
+
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/v1/health"
+$body = @{ question = "Jaké jsou podmínky cestovních náhrad?" } | ConvertTo-Json -Compress
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/api/v1/chat" `
+  -ContentType "application/json; charset=utf-8" `
+  -Body ([Text.Encoding]::UTF8.GetBytes($body))
+```
+
+To enable Phoenix tracing, set `AGENTIC_RAG_PHOENIX_ENABLED=true` in `.env`, start the existing Phoenix container, and recreate the API container so it reads the updated setting:
+
+```powershell
+docker compose start phoenix
+docker compose up -d --no-build --pull never --no-deps api
+```
+
+Open `http://127.0.0.1:6006` for Phoenix. Tracing is optional; the API works without Phoenix.
 
 Ingest a UTF-8 `.txt`, `.md`, or text-based `.pdf` file, or recursively ingest a directory:
 
@@ -42,7 +103,7 @@ The default embedding backend is Ollama with `nomic-embed-text`. Start Ollama an
 ollama pull nomic-embed-text
 ```
 
-The API uses `AGENTIC_RAG_OLLAMA_BASE_URL` for embedding requests. To use Sentence Transformers instead, set `AGENTIC_RAG_EMBEDDING_PROVIDER=sentence-transformers` and set `AGENTIC_RAG_EMBEDDING_MODEL` to a Hugging Face model name or local model path. That alternative runs on CPU, may download weights on first use, and can require substantial disk space for PyTorch.
+The API uses `AGENTIC_RAG_OLLAMA_BASE_URL` for embedding requests. To use Sentence Transformers instead, first install the optional dependency with `python -m pip install -e ".[local-embeddings]"`, then set `AGENTIC_RAG_EMBEDDING_PROVIDER=sentence-transformers` and set `AGENTIC_RAG_EMBEDDING_MODEL` to a Hugging Face model name or local model path. That alternative runs on CPU, may download model weights on first use, and can require substantial disk space for PyTorch. It is excluded from the default Docker image, which uses Ollama embeddings.
 
 Configure `AGENTIC_RAG_EMBEDDING_PROVIDER`, `AGENTIC_RAG_EMBEDDING_MODEL`, `AGENTIC_RAG_EMBEDDING_TIMEOUT_SECONDS`, `AGENTIC_RAG_CHROMA_PATH`, `AGENTIC_RAG_CHROMA_COLLECTION`, `AGENTIC_RAG_CHUNK_SIZE`, and `AGENTIC_RAG_CHUNK_OVERLAP` in `.env` as needed. Chunk sizes are characters, not model tokens, and long chunks may be truncated. Overlap must be smaller than chunk size.
 

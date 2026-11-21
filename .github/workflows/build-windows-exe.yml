@@ -31,7 +31,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install application and packager
-        run: python -m pip install -e ".[observability]" pyinstaller
+        run: python -m pip install -e ".[observability,local-embeddings]" pyinstaller
 
       - name: Build executable bundle
         run: >-

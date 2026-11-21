@@ -167,6 +167,8 @@ DEFAULT_PHOENIX_ENVIRONMENT = "development"
 DEFAULT_EVALUATION_ENDPOINT = "http://127.0.0.1:8000/api/v1/chat"
 DEFAULT_EVALUATION_TIMEOUT_SECONDS = 120.0
 DEFAULT_EVALUATION_DATASET_PATH = "tests/evaluation/rag_cases.json"
+CODEX_BRIDGE_MAX_PROMPT_CHARS = 200000
+CODEX_BRIDGE_MAX_BODY_BYTES = 1250000
 PHOENIX_TRACE_NAME = "agentic-rag.chat"
 PHOENIX_GENERATION_NAME = "agentic-rag.llm.generate"
 PHOENIX_TRACER_NAME = "agentic-rag"
@@ -225,6 +227,12 @@ class Settings(BaseSettings):
         ollama_model (str): Installed Ollama model name.
         codex_executable (str): Codex CLI executable on the server.
         codex_model (str | None): Optional Codex model override.
+        codex_bridge_url (str): Host bridge endpoint used by the remote provider.
+        codex_bridge_token (SecretStr | None): Shared bearer token for the bridge.
+        codex_bridge_bind_host (str): Host interface used by the local bridge.
+        codex_bridge_port (int): Port used by the local bridge.
+        codex_bridge_max_prompt_chars (int): Maximum prompt size accepted by the bridge.
+        codex_bridge_max_body_bytes (int): Maximum HTTP request body accepted by the bridge.
         llm_timeout_seconds (float): Maximum wait for provider responses.
         embedding_provider (str): Backend used to generate embeddings.
         embedding_model (str): Name of the configured embedding model.
@@ -261,11 +269,17 @@ class Settings(BaseSettings):
 
     app_name: str = "Agentic RAG"
     debug: bool = False
-    llm_provider: Literal["ollama", "codex"] = "ollama"
+    llm_provider: Literal["ollama", "codex", "codex-bridge"] = "ollama"
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "llama3.2"
     codex_executable: str = "codex"
     codex_model: str | None = None
+    codex_bridge_url: str = "http://host.docker.internal:8765"
+    codex_bridge_token: SecretStr | None = None
+    codex_bridge_bind_host: str = "127.0.0.1"
+    codex_bridge_port: int = Field(default=8765, ge=1, le=65535)
+    codex_bridge_max_prompt_chars: int = Field(default=CODEX_BRIDGE_MAX_PROMPT_CHARS, gt=0)
+    codex_bridge_max_body_bytes: int = Field(default=CODEX_BRIDGE_MAX_BODY_BYTES, gt=0)
     llm_timeout_seconds: float = Field(default=120.0, gt=0, allow_inf_nan=False)
     embedding_provider: Literal["ollama", "sentence-transformers"] = (
         DEFAULT_EMBEDDING_PROVIDER
@@ -316,6 +330,10 @@ class Settings(BaseSettings):
         """
         if self.chunk_overlap >= self.chunk_size:
             raise ValueError("Chunk overlap must be smaller than chunk size")
+        if self.llm_provider == "codex-bridge" and not (
+            self.codex_bridge_token and self.codex_bridge_token.get_secret_value().strip()
+        ):
+            raise ValueError("AGENTIC_RAG_CODEX_BRIDGE_TOKEN must be set for codex-bridge")
         return self
 
 
