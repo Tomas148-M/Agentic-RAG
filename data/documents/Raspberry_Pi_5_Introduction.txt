@@ -1,0 +1,39 @@
+Raspberry Pi 5
+An introduction to the single-board computer
+Beginner-friendly technical overview  |  November 2026
+1. What is Raspberry Pi 5?
+Raspberry Pi 5 is a compact, affordable single-board computer developed by Raspberry Pi. Unlike a microcontroller, it can run a full Linux operating system, desktop applications, servers, and Python programs. It is useful for education, software development, home automation, and prototyping.
+2. Key hardware specifications
+3. What can you build?
+A home server for a small web API, dashboard, or local service.
+An IoT gateway collecting sensor data over GPIO, MQTT, or network connections.
+A camera-based monitoring system using supported camera modules.
+A Python development environment for automation and prototyping.
+A lightweight AI edge application, subject to memory and CPU limitations.
+4. Operating systems and software
+Raspberry Pi OS (64-bit) is the usual starting point. Other compatible Linux distributions are available. Common tools include Python 3, Git, SSH, Docker (on supported 64-bit systems), and web frameworks such as FastAPI. Check the current compatibility notes before selecting a distribution or peripheral.
+5. Getting started
+Prepare a Raspberry Pi 5, suitable USB-C power supply, microSD card, and optional case with active cooling.
+Use Raspberry Pi Imager on another computer to install Raspberry Pi OS onto the microSD card.
+Configure Wi-Fi, username, and SSH in Imager if headless operation is desired.
+Insert the card, connect peripherals or Ethernet, and power on the board.
+Update packages using sudo apt update && sudo apt full-upgrade.
+Create a Python virtual environment and begin with a simple script or small FastAPI service.
+6. GPIO and hardware projects
+The 40-pin GPIO header connects the board to sensors, buttons, and other electronics. GPIO uses 3.3 V logic; do not apply 5 V directly to GPIO pins. On Raspberry Pi 5, use software libraries compatible with its updated GPIO architecture, such as gpiozero with an appropriate backend. Always verify pinouts and electrical limits.
+7. Limitations to consider
+Raspberry Pi 5 is more capable than earlier models, but it is not a substitute for a workstation GPU. Large language models and demanding computer-vision workloads can be slow or memory-intensive. Cooling matters under sustained CPU load, and PCIe storage requires additional hardware. For production deployments, plan for reliable power, storage endurance, security updates, and backups.
+8. Suggested first project
+Build a small environmental-monitoring API: read a sensor or simulated measurements with Python, expose the latest values through FastAPI, and display them on a simple web dashboard. Later, add MQTT, Docker, and persistent storage. This combines Linux administration, networking, Python, and hardware integration.
+Further reading
+Official documentation: https://www.raspberrypi.com/documentation/
+Product information: https://www.raspberrypi.com/products/raspberry-pi-5/
+Component | Specification
+Processor | Broadcom BCM2712, quad-core 64-bit Arm Cortex-A76, 2.4 GHz
+Graphics | VideoCore VII GPU; dual 4Kp60 HDMI output
+Memory | LPDDR4X RAM; capacity depends on model
+Connectivity | Dual-band Wi-Fi, Bluetooth 5.0 / BLE, Gigabit Ethernet
+Ports | 2 × USB 3.0, 2 × USB 2.0, 2 × micro-HDMI, USB-C power
+Expansion | 40-pin GPIO header, 2 × 4-lane MIPI camera/display connectors, PCIe 2.0 x1 via FPC
+Storage | microSD card; NVMe SSD possible with a suitable PCIe adapter/HAT
+Power | 5 V / 5 A USB-C supply recommended for full peripheral power
