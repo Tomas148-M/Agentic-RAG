@@ -15,7 +15,7 @@ from app.schemas.chat import Citation
 
 
 def create_generate_node(llm: LLMProvider) -> Callable[[AgentState], AgentState]:
-    """Create a node that generates an answer and maps its citation IDs.
+    """Create a node that generates an answer and validates citation IDs.
 
     Args:
         llm (LLMProvider): Model used to generate a document-grounded answer.
@@ -62,8 +62,9 @@ def create_generate_node(llm: LLMProvider) -> Callable[[AgentState], AgentState]
         return {
             "answer": answer,
             "citations": citations,
-            "answer_valid": valid,
-            "answer_attempts": state.get("answer_attempts", 0) + 1,
+            "citations_valid": valid,
+            "answer_grounded": False,
+            "generation_attempts": state.get("generation_attempts", 0) + 1,
             "generation_feedback": ANSWER_RETRY_FEEDBACK,
         }
 
