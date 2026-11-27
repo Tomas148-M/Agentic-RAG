@@ -68,7 +68,7 @@ def build_agentic_rag_graph(
     def retry_query(state: AgentState) -> AgentState:
         """Record that another retrieval attempt is needed."""
         return {
-            "retry_count": state.get("retry_count", 0) + 1,
+            "retrieval_retries": state.get("retrieval_retries", 0) + 1,
             "feedback": RETRIEVAL_RETRY_FEEDBACK,
         }
 
@@ -96,6 +96,14 @@ def build_agentic_rag_graph(
     workflow.add_node(NO_CONTEXT_NODE, no_context)
     workflow.add_node(UNSUPPORTED_NODE, unsupported)
     workflow.add_node(FAIL_NODE, fail)
+    # Traversal:
+    # route -> unsupported -> END
+    # route -> rewrite -> retrieve -> grade
+    #   grade -> retry_query -> rewrite (until retrieval retries run out)
+    #   grade -> no_context -> END
+    #   grade -> generate -> evaluate
+    #     evaluate -> generate (until generation retries run out)
+    #     evaluate -> END when valid; otherwise fail raises LLMProviderError.
     workflow.add_edge(START, ROUTE_NODE)
     workflow.add_conditional_edges(
         ROUTE_NODE,
@@ -131,8 +139,8 @@ def build_agentic_rag_graph(
             {
                 "question": question,
                 "query": question,
-                "retry_count": 0,
-                "answer_attempts": 0,
+                "retrieval_retries": 0,
+                "generation_attempts": 0,
                 "feedback": "",
                 "generation_feedback": "",
             },
