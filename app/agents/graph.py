@@ -77,7 +77,6 @@ def build_agentic_rag_graph(
         return {
             "answer": NO_DOCUMENTS_ANSWER,
             "citations": [],
-            "answer_valid": True,
         }
 
     def unsupported(_: AgentState) -> AgentState:
@@ -85,7 +84,6 @@ def build_agentic_rag_graph(
         return {
             "answer": UNSUPPORTED_REQUEST_ANSWER,
             "citations": [],
-            "answer_valid": True,
         }
 
     def fail(_: AgentState) -> AgentState:
@@ -103,7 +101,8 @@ def build_agentic_rag_graph(
     #   grade -> no_context -> END
     #   grade -> generate -> evaluate
     #     evaluate -> generate (until generation retries run out)
-    #     evaluate -> END when valid; otherwise fail raises LLMProviderError.
+    #     evaluate -> END when answer_grounded; otherwise fail raises
+    #     LLMProviderError after generation retries run out.
     workflow.add_edge(START, ROUTE_NODE)
     workflow.add_conditional_edges(
         ROUTE_NODE,

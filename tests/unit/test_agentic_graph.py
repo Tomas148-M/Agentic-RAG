@@ -25,6 +25,8 @@ def test_graph_routes_unsupported_request_without_retrieval() -> None:
 
     assert result["citations"] == []
     assert "configured sources" in result["answer"]
+    assert "citations_valid" not in result
+    assert "answer_grounded" not in result
     retriever.retrieve.assert_not_called()
     llm.generate.assert_called_once()
 
@@ -73,6 +75,8 @@ def test_graph_retries_retrieval_then_returns_no_context() -> None:
 
     assert result["answer"] == "No relevant documents were found."
     assert result["citations"] == []
+    assert "citations_valid" not in result
+    assert "answer_grounded" not in result
     assert [call.args[0] for call in retriever.retrieve.call_args_list] == [
         "first search",
         "second search",
@@ -153,8 +157,130 @@ def test_graph_max_retry_path_overrides_low_langgraph_default(
 
 def test_agentic_settings_validate_retry_limit() -> None:
     """Agent retry count is selectable and bounded by application settings."""
-    settings = Settings(rag_mode="agentic", agentic_max_retries=3)
+    settings = Settings(
+        rag_mode="agentic", agentic_max_retries=3, _env_file=None
+    )
     assert settings.rag_mode == "agentic"
     assert settings.agentic_max_retries == 3
     with pytest.raises(ValueError):
-        Settings(agentic_max_retries=6)
+        Settings(agentic_max_retries=6, _env_file=None)
+
+
+@pytest.mark.parametrize("max_retries", [0, 1, 2])
+def test_graph_retrieval_limit_counts_retries_after_initial_search(
+    max_retries: int,
+) -> None:
+    """Each retry limit permits the initial search plus that many retries."""
+    retriever = Mock()
+    retriever.retrieve.return_value = [
+        RetrievedChunk("Unrelated content", "other.txt", 0, 0.8)
+    ]
+    llm = Mock()
+    llm.generate.side_effect = [
+        "RETRIEVE",
+        *(item for _ in range(max_retries + 1) for item in ("search", "NO")),
+    ]
+
+    result = build_agentic_rag_graph(retriever, llm, max_retries)("Question")
+
+    assert result["answer"] == "No relevant documents were found."
+    assert retriever.retrieve.call_count == max_retries + 1
+
+
+@pytest.mark.parametrize("max_retries", [0, 1, 2])
+def test_graph_generation_limit_includes_initial_attempt(
+    max_retries: int,
+    retrieved_chunk: RetrievedChunk,
+) -> None:
+    """Each generation limit permits one initial attempt plus its retries."""
+    retriever = Mock()
+    retriever.retrieve.return_value = [retrieved_chunk]
+    llm = Mock()
+    llm.generate.side_effect = [
+        "RETRIEVE",
+        "capital",
+        "YES",
+        *(
+            item
+            for _ in range(max_retries + 1)
+            for item in ("Prague is the capital. [S1]", "FAIL")
+        ),
+    ]
+
+    with pytest.raises(LLMProviderError):
+        build_agentic_rag_graph(retriever, llm, max_retries)("Question")
+
+    assert retriever.retrieve.call_count == 1
+    assert llm.generate.call_count == 3 + (2 * (max_retries + 1))
+
+
+@pytest.mark.parametrize("max_retries", [0, 1, 2])
+def test_graph_can_pass_evaluation_on_last_generation_attempt(
+    max_retries: int,
+    retrieved_chunk: RetrievedChunk,
+) -> None:
+    """A passing answer on the final permitted generation is returned."""
+    retriever = Mock()
+    retriever.retrieve.return_value = [retrieved_chunk]
+    llm = Mock()
+    llm.generate.side_effect = [
+        "RETRIEVE",
+        "capital",
+        "YES",
+        *(
+            item
+            for attempt in range(max_retries + 1)
+            for item in (
+                "Prague is the capital. [S1]",
+                "PASS" if attempt == max_retries else "FAIL",
+            )
+        ),
+    ]
+
+    result = build_agentic_rag_graph(retriever, llm, max_retries)("Question")
+
+    assert result["answer"] == "Prague is the capital. [S1]"
+    assert llm.generate.call_count == 3 + (2 * (max_retries + 1))
+
+
+@pytest.mark.parametrize("max_retries", [0, 1, 2])
+def test_graph_retrieval_and_generation_limits_are_independent(
+    max_retries: int,
+    retrieved_chunk: RetrievedChunk,
+) -> None:
+    """Both workflows can reach their final allowed attempt independently."""
+    retriever = Mock()
+    retriever.retrieve.side_effect = [
+        *(
+            [RetrievedChunk("Unrelated content", "other.txt", 0, 0.8)]
+            for _ in range(max_retries)
+        ),
+        [retrieved_chunk],
+    ]
+    llm = Mock()
+    llm.generate.side_effect = [
+        "RETRIEVE",
+        *(
+            item
+            for attempt in range(max_retries + 1)
+            for item in (
+                f"search {attempt}",
+                "NO" if attempt < max_retries else "YES",
+            )
+        ),
+        *(
+            item
+            for attempt in range(max_retries + 1)
+            for item in (
+                "Prague is the capital. [S1]",
+                "PASS" if attempt == max_retries else "FAIL",
+            )
+        ),
+    ]
+
+    result = build_agentic_rag_graph(retriever, llm, max_retries)("Question")
+
+    assert result["answer"] == "Prague is the capital. [S1]"
+    assert result["retrieval_retries"] == max_retries
+    assert result["generation_attempts"] == max_retries + 1
+    assert retriever.retrieve.call_count == max_retries + 1

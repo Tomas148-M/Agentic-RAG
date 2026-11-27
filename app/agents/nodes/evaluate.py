@@ -12,7 +12,7 @@ from app.integrations.llm.base import LLMProvider
 def create_evaluate_node(
     llm: LLMProvider,
 ) -> Callable[[AgentState], AgentState]:
-    """Create a node that checks answer grounding and citation validity.
+    """Create a node that checks answer grounding after citation validation.
 
     Args:
         llm (LLMProvider): Model used to evaluate answer support.
@@ -27,8 +27,8 @@ def create_evaluate_node(
             {"id": f"S{index}", "text": chunk.text}
             for index, chunk in enumerate(chunks, start=1)
         ]
-        if not state.get("answer_valid", False):
-            return {"answer_valid": False}
+        if not state.get("citations_valid", False):
+            return {"answer_grounded": False}
         result = llm.generate(
             build_answer_evaluator_prompt(
                 state["question"], state.get("answer", ""), excerpts,
@@ -37,7 +37,7 @@ def create_evaluate_node(
         )
         passed = result.strip().upper() == EVALUATION_PASS
         return {
-            "answer_valid": passed,
+            "answer_grounded": passed,
             "generation_feedback": (
                 "" if passed else EVALUATION_RETRY_FEEDBACK
             ),

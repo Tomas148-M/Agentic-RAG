@@ -19,6 +19,7 @@ class AgentState(TypedDict, total=False):
     citations: list[Citation]
     feedback: str
     generation_feedback: str
-    retry_count: int
-    answer_attempts: int
-    answer_valid: bool
+    retrieval_retries: int
+    generation_attempts: int
+    citations_valid: bool
+    answer_grounded: bool
