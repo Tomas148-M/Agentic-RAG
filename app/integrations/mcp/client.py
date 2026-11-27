@@ -247,7 +247,19 @@ class MCPClient:
 def validate_tool_arguments(
     arguments: dict[str, Any], schema: dict[str, Any]
 ) -> None:
-    """Validate simple JSON Schema object constraints used by MCP tools."""
+    """Validate the supported subset of JSON Schema for MCP tool inputs."""
+    properties = validate_argument_object(arguments, schema)
+    for key, value in arguments.items():
+        property_schema = properties.get(key)
+        if not isinstance(property_schema, dict):
+            continue
+        validate_argument_value(value, property_schema)
+
+
+def validate_argument_object(
+    arguments: dict[str, Any], schema: dict[str, Any]
+) -> dict[str, Any]:
+    """Check object-level constraints and return property definitions."""
     if not isinstance(arguments, dict):
         raise TypeError(MCP_ARGUMENTS_MUST_BE_OBJECT_ERROR)
     if schema.get(MCP_SCHEMA_TYPE_KEY, MCP_SCHEMA_OBJECT_TYPE) != MCP_SCHEMA_OBJECT_TYPE:
@@ -262,38 +274,45 @@ def validate_tool_arguments(
         key not in properties for key in arguments
     ):
         raise ValueError(MCP_ARGUMENTS_INVALID_ERROR)
-    for key, value in arguments.items():
-        property_schema = properties.get(key)
-        if not isinstance(property_schema, dict):
+    return properties
+
+
+def validate_argument_value(value: Any, property_schema: dict[str, Any]) -> None:
+    """Check one value against its supported property type constraints."""
+    schema_types = property_schema.get(MCP_SCHEMA_TYPE_KEY)
+    if isinstance(schema_types, str):
+        schema_types = [schema_types]
+    if not isinstance(schema_types, list):
+        return
+    if value is None:
+        if "null" in schema_types or property_schema.get(
+            MCP_SCHEMA_NULLABLE_KEY
+        ) is True:
+            return
+        raise ValueError(MCP_ARGUMENTS_INVALID_ERROR)
+
+    expected_types = resolve_allowed_types(schema_types)
+    if not expected_types:
+        raise ValueError(MCP_ARGUMENTS_INVALID_ERROR)
+    # bool subclasses int in Python, but JSON Schema treats them as distinct.
+    if isinstance(value, bool) and (
+        bool not in expected_types
+        and (int in expected_types or float in expected_types)
+    ):
+        raise ValueError(MCP_ARGUMENTS_INVALID_ERROR)
+    if not isinstance(value, tuple(expected_types)):
+        raise TypeError(MCP_ARGUMENTS_INVALID_ERROR)
+
+
+def resolve_allowed_types(schema_types: list[Any]) -> list[type]:
+    """Map supported JSON Schema type names to Python runtime types."""
+    expected_types: list[type] = []
+    for schema_type in schema_types:
+        if not isinstance(schema_type, str) or schema_type == "null":
             continue
-        schema_types = property_schema.get(MCP_SCHEMA_TYPE_KEY)
-        if isinstance(schema_types, str):
-            schema_types = [schema_types]
-        if not isinstance(schema_types, list):
-            continue
-        if value is None:
-            if "null" in schema_types or property_schema.get(
-                MCP_SCHEMA_NULLABLE_KEY
-            ) is True:
-                continue
-            raise ValueError(MCP_ARGUMENTS_INVALID_ERROR)
-        expected_types: list[type] = []
-        for schema_type in schema_types:
-            if not isinstance(schema_type, str):
-                continue
-            if schema_type == "null":
-                continue
-            expected_type = MCP_ALLOWED_ARGUMENT_TYPES.get(schema_type)
-            if isinstance(expected_type, tuple):
-                expected_types.extend(expected_type)
-            elif expected_type is not None:
-                expected_types.append(expected_type)
-        if not expected_types:
-            raise ValueError(MCP_ARGUMENTS_INVALID_ERROR)
-        if isinstance(value, bool) and (
-            bool not in expected_types
-            and (int in expected_types or float in expected_types)
-        ):
-            raise ValueError(MCP_ARGUMENTS_INVALID_ERROR)
-        if not isinstance(value, tuple(expected_types)):
-            raise TypeError(MCP_ARGUMENTS_INVALID_ERROR)
+        expected_type = MCP_ALLOWED_ARGUMENT_TYPES.get(schema_type)
+        if isinstance(expected_type, tuple):
+            expected_types.extend(expected_type)
+        elif expected_type is not None:
+            expected_types.append(expected_type)
+    return expected_types
